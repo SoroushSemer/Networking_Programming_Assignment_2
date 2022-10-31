@@ -2,9 +2,11 @@ from ipaddress import ip_address
 import dpkt
 import socket
 import numpy as np
+import datetime
 
 
 WINDOW_SIZE_SCALING_FACTOR = 16384
+MSS = 1460
 
 f = open('assignment2.pcap','rb')
 pcap = dpkt.pcap.Reader(f)
@@ -22,43 +24,110 @@ reciever ={ "ip":"128.208.2.198", "start_counts":0}
 class TCP_Flow:
     def print_flow(self):
         
-        print('==========(',self.src_port,',',self.src_ip, ',',self.dest_port,',',self.dest_ip,')==========')
-        print(self.sent, "bytes sent")
+        
+
+        print('\n==========(',self.src_port,',',self.src_ip, ',',self.dest_port,',',self.dest_ip,')==========')
         if(self.is_open):
             print("Flow never closed")
-        seq_adjust = self.messages[0][2] 
-        ack_adjust = self.messages[1][3] 
+        self.start = datetime.datetime.utcfromtimestamp(self.messages[0][6])
+        end = datetime.datetime.utcfromtimestamp(self.messages[-1][6])
+        time = (end - self.start).total_seconds()
+        # print(time)
+        print(self.sent, "bytes sent over", time, "seconds")
+        # time = 2
+        throughput = (self.sent / time) 
+        print("Throughput: {:e} Bps ({:e} bps)".format(throughput, throughput*8))
         
+
         # print("\t----First Two Tranactions----")
         start= 2
         if(self.messages[2][4] == 0):
             start = 3
         # print(self.messages[2])
         transact = 1
+        # timeouts = 0
         for x in range(start, len(self.messages)):
            
-            if(transact > 2):
-                break
+            # if(transact > 2):
+            #     break
             if(self.messages[x][0]==1):
                 for i in self.messages[x+1:]:
                     if(i[0]==2 and self.messages[x][3] == i[2]):
+                        # if(transact == 1):
+                        #     start = self.messages[x][6]
+                        #     end = self.messages[-2][6]
+                        #     time = (end - start) / 1000
+                        #     throughput = (self.sent / time) 
+                        #     print("Throughput: {:e} Bps".format(throughput))
+                        start = datetime.datetime.utcfromtimestamp(self.messages[x][6])
+                        end = datetime.datetime.utcfromtimestamp(i[6])
                         if(transact == 1):
-                            start = self.messages[x][6]
-                            end = self.messages[-2][6]
-                            time = (end - start) / 1000
-                            throughput = (self.sent / time) 
-                            print("Throughput:", throughput, "Bps")
-                        print( "\tTransaction", transact)
-                        print("\t\traw SEQ:", self.messages[x][2])
-                        print("\t\traw ACK:", self.messages[x][3])
-                        print("\t\tRecieve Window Size:", self.messages[x][5] * WINDOW_SIZE_SCALING_FACTOR)
-                        print("\t\tlen:", self.messages[x][4])
+                            self.start = start
+                            self.rtt = (end - start).total_seconds()
+                        #  
+                        # else:
+                        #     self.rtt = (1-0.125)*self.rtt + 5*((end - start).total_seconds())
+                        if(transact <3):
+                            print( "\tTransaction", transact)
+                            print("\t\traw SEQ:", self.messages[x][2])
+                            print("\t\traw ACK:", self.messages[x][3])
+                            print("\t\tRecieve Window Size:", self.messages[x][5])
+                            print("\t\tRecieve Window Size (scaled):", self.messages[x][5] * WINDOW_SIZE_SCALING_FACTOR)
+                            print("\t\tlen:", self.messages[x][4])
+                        
+
                         transact+=1
                         break
             
-            
-                
+        print("RTT:",self.rtt, "seconds")
+        RTT_packet_counts =[0,0,0]
+        current_RTT = 0
+        current_max = self.start + (datetime.timedelta(seconds = self.rtt))
+        current_min = self.start
+        for packet in self.messages:
+            if(datetime.datetime.utcfromtimestamp(packet[6]) <= current_max ):
+                if(datetime.datetime.utcfromtimestamp(packet[6]) > current_min and packet[0] == 1):
+                    RTT_packet_counts[current_RTT] += 1
+            else:
+                current_RTT += 1
+                current_min = current_max
+                current_max += datetime.timedelta(seconds = self.rtt)
+                if(current_RTT > 2):
+                    break
+        print("cwnd:", RTT_packet_counts)
         
+        triple_dup_acks = 0
+        out_of_order = 0
+        acks = 0 
+        current_ack = 0
+        # for i in set(self.acks):
+        for i in range(len(self.messages)):
+           if(self.messages[i][0]==2):
+                if(self.messages[i][3]==current_ack):
+                    acks+=1
+                else:
+                    acks = 0
+                    current_ack = self.messages[i][3]
+           elif(self.messages[i][2]==current_ack and acks >= 2 ):
+                triple_dup_acks+=1
+                # print(current_ack)
+        for i in range(len(self.messages)-1):
+            if(self.messages[i][0] == 2 and self.messages[i+1][0] == 1 and self.messages[i][3] == self.messages[i+1][2]):
+                    out_of_order+=1
+        retransmissions = 0
+        for i in set(self.seqs):
+            
+            if(self.seqs.count(i) >= 2):
+                retransmissions += 1
+        retransmissions -= triple_dup_acks + out_of_order
+
+            # if(self.messages[i][0]== 2 and self.messages[i+1][0]== 2 and self.messages[i+2][0]== 2 and self.messages[i+3][0]==1):
+            #     if(self.messages[i][3] == self.messages[i+1][3] and self.messages[i][3] == self.messages[i+2][3] and self.messages[i][3] == self.messages[i+3][2]):
+            #         triple_dup_acks+=1
+            #         print(self.messages[i][3])
+        print("Triple Dup ACKs:", triple_dup_acks)
+        print("Retransmissions:", retransmissions)
+
         # print("\t\t\tACK: ", self.messages[2])
         
         
@@ -89,9 +158,15 @@ class TCP_Flow:
         self.is_open = True #flow is still open
         self.one_left = False
         self.sent = 0
+        self.cwnd = MSS
+        self.rtt = 0
+        self.start = 0
+        self.acks = []
+        self.seqs = []
     
 tcp_flows = []
 # flags = []
+last_eth=  0
 for ts, buf in pcap:
     # print (ts, len(buf))
     eth = dpkt.ethernet.Ethernet(buf)
@@ -113,19 +188,28 @@ for ts, buf in pcap:
         check_same_flow = flow.check_same_flow(tcp.sport, src_ip, tcp.dport, dest_ip)
         if(check_same_flow!=0):
             flow.add_msg((check_same_flow,hex(tcp.flags),  tcp.seq, tcp.ack, ip.len-52, tcp.win, ts))
-            flow.sent += ip.len - 60
+            # if(len(flow.messages)== 1):
+            #     for i in dpkt.tcp.parse_opts(buf):
+            #        i[1].pprint()
+
+            if(check_same_flow == 1):
+                flow.sent += len(tcp.data)
+                flow.seqs.append(tcp.seq)
+            if(check_same_flow == 2):
+                flow.acks.append(tcp.ack)
             if(flow.one_left):
                 flow.is_open = False
                 flow.one_left = False
             if(tcp.flags == 17):
                 flow.one_left = True
-                print("hit fin")
-        
-
+                # print("hit fin")
+    last_eth = eth
+# print(str(datetime.datetime.utcfromtimestamp(last_ts)))     
+# last_eth.pprint()
     # break
-
-print(sender["ip"], sender["start_counts"])
-print(reciever["ip"], reciever["start_counts"])
+0.12
+# print(sender["ip"], sender["start_counts"])
+# print(reciever["ip"], reciever["start_counts"])
 for i in tcp_flows:
     i.print_flow()
 
@@ -135,4 +219,5 @@ for i in tcp_flows:
 #         sender["count"]+=1
 #     if(i==reciever["ip"]):
 #         reciever["count"]+=1
+
 
