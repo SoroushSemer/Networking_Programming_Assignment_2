@@ -45,13 +45,19 @@ class TCP_Flow:
             start = 3
         # print(self.messages[2])
         transact = 1
-        # timeouts = 0
+        timeouts = 0
+
+        ooo = 0
+        # out_of_order = 0
         for x in range(start, len(self.messages)):
            
             # if(transact > 2):
             #     break
             if(self.messages[x][0]==1):
+                max_seq = 0
                 for i in self.messages[x+1:]:
+                    if(i[0] == 1):
+                        max_seq = max(max_seq, i[2])
                     if(i[0]==2 and self.messages[x][3] == i[2]):
                         # if(transact == 1):
                         #     start = self.messages[x][6]
@@ -64,9 +70,14 @@ class TCP_Flow:
                         if(transact == 1):
                             self.start = start
                             self.rtt = (end - start).total_seconds()
+                            self.actual_rtt = self.rtt
                         #  
-                        # else:
-                        #     self.rtt = (1-0.125)*self.rtt + 5*((end - start).total_seconds())
+                        else:
+                            self.actual_rtt = -1*(1-0.125)*self.actual_rtt + 0.125*((end - start).total_seconds())
+                        if((end - start).total_seconds() > self.rtt):
+                            timeouts+=1
+                        if(self.messages[self.messages.index(i)+1][2] == i[3] and self.messages[self.messages.index(i)+1][2] > max_seq):
+                            ooo+=1
                         if(transact <3):
                             print( "\tTransaction", transact)
                             print("\t\traw SEQ:", self.messages[x][2])
@@ -111,22 +122,28 @@ class TCP_Flow:
            elif(self.messages[i][2]==current_ack and acks >= 2 ):
                 triple_dup_acks+=1
                 # print(current_ack)
-        for i in range(len(self.messages)-1):
-            if(self.messages[i][0] == 2 and self.messages[i+1][0] == 1 and self.messages[i][3] == self.messages[i+1][2]):
-                    out_of_order+=1
+
+        # for i in range(len(self.messages)-2):
+        #     if(self.messages[i][0] == 2 and self.messages[i+1][0] == 1 and self.messages[i][3] == self.messages[i+1][2]  and self.messages[i+1][2]+self.messages[i+1][4] != self.messages[i+2][2]):
+        #             out_of_order+=1
+        for i in range(len(self.seqs)-1):
+            if(self.seqs[i] > self.seqs[i+1] ):
+                out_of_order+=1
+        #     if()
         retransmissions = 0
         for i in set(self.seqs):
             
             if(self.seqs.count(i) >= 2):
-                retransmissions += 1
-        retransmissions -= triple_dup_acks + out_of_order
+                retransmissions += self.seqs.count(i)-1
+        retransmissions -= triple_dup_acks 
 
             # if(self.messages[i][0]== 2 and self.messages[i+1][0]== 2 and self.messages[i+2][0]== 2 and self.messages[i+3][0]==1):
             #     if(self.messages[i][3] == self.messages[i+1][3] and self.messages[i][3] == self.messages[i+2][3] and self.messages[i][3] == self.messages[i+3][2]):
             #         triple_dup_acks+=1
             #         print(self.messages[i][3])
         print("Triple Dup ACKs:", triple_dup_acks)
-        print("Retransmissions:", retransmissions)
+        # print("Timeouts:", timeouts)
+        print("Retransmissions due to timeout:", retransmissions)
 
         # print("\t\t\tACK: ", self.messages[2])
         
@@ -163,6 +180,7 @@ class TCP_Flow:
         self.start = 0
         self.acks = []
         self.seqs = []
+        self.actual_rtt = 0
     
 tcp_flows = []
 # flags = []
