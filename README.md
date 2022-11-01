@@ -3,7 +3,7 @@
 ## High Level Summary ##
 The program uses a TCP_Flow class which seperates the packets from the file into different objects based on the src and dst ips and port numbers. The first two transaction are collected by checking looking for the first and second data filled packets which get an acknowledgement back. The throughput is then calculated but checking how much data the sender has sent and dividing it by the time from the first byte being sent to the last acknowledgement being received by the flow.
 
-The congestion window sizes are checked by first calculating the iRTT which is gotten from the time it takes the first transaction to be completed. Then the number of packets being sent is counted on the following intervals: first packet being sent to 1 RTT, 1 RTT to 2 RTT, and 2 RTT to 3 RTT. The congestion window size grows as the flows move on pretty linearly this isbecause the congestion control starts growing the size exponentially until it hits a packet loss at which point it becomes linear growth. I was able to get the number of triple dup acks by if there are 3 acks in a row that have the same value followed by a packet from the sender with a seq value equal to those acks. The count of retransmissions due to timeout is calculated by counting how many duplicate seq numbers are sent by the sender and subtracting the number of triple dup acks and the number of out of order packets.
+The congestion window sizes are checked by first calculating the iRTT which is gotten from the time it takes the first transaction to be completed. Then the number of packets being sent is counted on the following intervals: first packet being sent to 1 RTT, 1 RTT to 2 RTT, and 2 RTT to 3 RTT. The congestion window size grows as the flows move on exponentialy this is because the congestion control starts growing the size exponentially until it hits a packet loss at which point it becomes linear growth since the flows don't hit a packet loss in the first 3RTT the growth is exponential doubling for each successful transaction. I was able to get the number of triple dup acks by if there are 3 acks in a row that have the same value followed by a packet from the sender with a seq value equal to those acks. The count of retransmissions due to timeout is calculated by counting how many duplicate seq numbers are sent by the sender and subtracting the number of triple dup acks and the number of out of order packets.
 
 ## Before Running ##
 Be sure to install ```dpkt``` ```socket``` and ```datetime```
@@ -71,7 +71,4 @@ RTT: 0.072921 seconds
 cwnd: [9, 21, 33]
 Triple Dup ACKs: 0
 Retransmissions due to timeout: 1
-Part B (1) comments:
-The congestion window size grows as the flows move on pretty linearly this is
-because the congestion control starts growing the size exponentially until it
-hits a packet loss at which point it becomes linear growth.```
+```
