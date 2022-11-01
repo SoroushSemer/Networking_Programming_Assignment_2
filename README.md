@@ -66,4 +66,6 @@ cwnd: [9, 21, 33]
 Triple Dup ACKs: 0
 Retransmissions due to timeout: 1
 Part B (1) comments:
-The congestion window size grows as the flows move on pretty linearly this is because the congestion control starts growing the size exponentially until it hits a packet loss at which point it becomes linear growth.```
+The congestion window size grows as the flows move on pretty linearly this is
+because the congestion control starts growing the size exponentially until it
+hits a packet loss at which point it becomes linear growth.```
