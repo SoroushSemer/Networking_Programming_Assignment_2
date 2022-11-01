@@ -225,7 +225,7 @@ for ts, buf in pcap:
 # print(str(datetime.datetime.utcfromtimestamp(last_ts)))     
 # last_eth.pprint()
     # break
-0.12
+# 0.12
 # print(sender["ip"], sender["start_counts"])
 # print(reciever["ip"], reciever["start_counts"])
 for i in tcp_flows:
