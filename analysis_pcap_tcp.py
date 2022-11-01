@@ -1,7 +1,7 @@
 from ipaddress import ip_address
 import dpkt
 import socket
-import numpy as np
+# import numpy as np
 import datetime
 
 
@@ -230,8 +230,6 @@ for ts, buf in pcap:
 # print(reciever["ip"], reciever["start_counts"])
 for i in tcp_flows:
     i.print_flow()
-print("Part B (1) comments:")
-print("The congestion window size grows as the flows move on pretty linearly this is because the congestion control starts growing the size exponentially until it hits a packet loss at which point it becomes linear growth.")
 # print(set(flags))
 # for i in src_ips:
 #     if(i == sender["ip"]):
